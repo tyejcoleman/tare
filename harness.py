@@ -37,6 +37,10 @@ MAX_FILE = 80_000_000
 # than parsing every line as JSON, and these keys only appear inside tool_use
 # blocks, so there is nothing to disambiguate.
 RE_MCP = re.compile(rb'"name":"mcp__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_]+)"')
+# Any mention, not just a call. Tool listings appear verbatim in transcripts, so
+# the set of names ever seen is a floor on how many tools a server exposes —
+# i.e. how much of your context it occupies whether you use it or not.
+RE_MCP_ANY = re.compile(rb'mcp__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_]+)')
 RE_AGENT = re.compile(rb'"subagent_type":"([a-zA-Z0-9:_-]+)"')
 RE_SKILL = re.compile(rb'"skill":"([a-zA-Z0-9:._-]+)"')
 
@@ -85,6 +89,7 @@ def scan(days: int | None) -> dict:
     # globally but only ever called in one project is not dead — it is
     # misplaced, and every other project is paying for it.
     mcp_projects: dict[str, set] = defaultdict(set)
+    mcp_exposed: dict[str, set] = defaultdict(set)
     agents: dict[str, int] = defaultdict(int)
     skills: dict[str, int] = defaultdict(int)
     last: dict[str, float] = {}
@@ -106,6 +111,8 @@ def scan(days: int | None) -> dict:
         files += 1
         touched = False
 
+        for srv, tool in RE_MCP_ANY.findall(data):
+            mcp_exposed[srv.decode()].add(tool.decode())
         for srv, tool in RE_MCP.findall(data):
             s = srv.decode()
             mcp_calls[s] += 1
@@ -130,6 +137,7 @@ def scan(days: int | None) -> dict:
         "mcp_calls": dict(mcp_calls),
         "mcp_tools": {k: sorted(v) for k, v in mcp_tools.items()},
         "mcp_projects": {k: sorted(v) for k, v in mcp_projects.items()},
+        "mcp_exposed": {k: len(v) for k, v in mcp_exposed.items()},
         "agents": dict(agents),
         "skills": dict(skills),
         "last": last,
@@ -161,9 +169,13 @@ def assess(scanned: dict) -> dict:
                 "calls": n,
                 "days": int((now - ts) // 86400) if ts else None,
                 "tools_used": len(scanned["mcp_tools"].get(name, [])) if prefix == "mcp" else None,
+                "tools_exposed": scanned["mcp_exposed"].get(name) if prefix == "mcp" else None,
                 "projects": projs,
                 # Configured for everything, used in one place.
-                "misplaced": bool(where == "global" and n > 0 and len(projs) == 1),
+                # Configured for everything, used in one place — but "used only
+                # from the home directory" is not a project, so it doesn't count.
+                "misplaced": bool(where == "global" and n > 0 and len(projs) == 1
+                                  and projs[0].strip("-") != _HOME_SLUG.strip("-")),
             })
         rows.sort(key=lambda r: (r["calls"], -(r["days"] or 9999)))
         return {"title": title, "unit": unit, "rows": rows, "note": note}
@@ -233,8 +245,9 @@ def report(scanned, a, days, tty=True):
             else:
                 dot, tag = color("●", GRN, tty), color(f"{r['days']}d ago", DIM, tty)
             extra = ""
-            if r["tools_used"] is not None and r["calls"]:
-                extra = color(f"  {r['tools_used']} tools used", DIM, tty)
+            if r.get("tools_exposed"):
+                extra = color(f"  {r['tools_used']}/{r['tools_exposed']} tools used",
+                              DIM, tty)
             print(f"  {dot} {r['name']:<20} {r['calls']:>6} calls   {tag}{extra}")
             if r.get("misplaced"):
                 print(color(f"       ↳ global, but only ever used in "
@@ -263,6 +276,10 @@ def report(scanned, a, days, tty=True):
         print(color("  Counted from recorded invocations only. A skill loaded some other "
                     "way,", DIM, tty))
         print(color("  or used before it was added to your config, will not appear here.",
+                    DIM, tty))
+        print(color("  'n/m tools used' counts tool names seen in your transcripts — a "
+                    "floor on", DIM, tty))
+        print(color("  what each server exposes, not a reading of its live schema.",
                     DIM, tty))
     else:
         print(color("  Every configured piece of your harness has been used recently.",

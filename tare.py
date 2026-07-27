@@ -36,10 +36,12 @@ USAGE = """tare — what is your agent harness actually carrying?
   tare --json
 
   tare why <name>          evidence behind one verdict
+  tare trim                show exactly what you would change (dry run)
+  tare trim --apply        make those changes, after backing up your config
   tare rules [repo]        audit a repo's CLAUDE.md instead
   tare history [repo]      the accruing record for a repo
 
-Reads only. Never edits your config."""
+Read-only unless you pass --apply, and even then it backs up first."""
 
 
 def cmd_why(name: str, tty: bool) -> int:
@@ -104,6 +106,139 @@ def cmd_why(name: str, tty: bool) -> int:
     return 0
 
 
+def _plan(scanned: dict) -> tuple[list, list, list]:
+    """What the audit implies: servers to drop, servers to scope, files to delete."""
+    import re as _re
+    cfg = H.configured_mcp()
+    try:
+        conf = __import__("json").loads(H.CONFIG.read_text(errors="replace"))
+    except Exception:
+        conf = {}
+    proj_keys = list((conf.get("projects") or {}).keys())
+    slug = {_re.sub(r"[^A-Za-z0-9]+", "-", k): k for k in proj_keys}
+
+    drop, scope = [], []
+    for name, where in sorted(cfg.items()):
+        if where != "global":
+            continue
+        calls = scanned["mcp_calls"].get(name, 0)
+        projs = scanned["mcp_projects"].get(name, [])
+        if calls == 0:
+            drop.append(name)
+        elif len(projs) == 1:
+            # The transcript dir name is a lossy slug; recover the true path by
+            # slugifying the real project keys and matching, never by unslugging.
+            real = slug.get(projs[0])
+            # Scoping to the home directory is not scoping — sessions started
+            # from ~ are not a project, and moving it there hides it everywhere.
+            if real and Path(real).resolve() != H.HOME.resolve():
+                scope.append((name, real))
+
+    files = []
+    for name, _ in H.configured_agents().items():
+        if scanned["agents"].get(name, 0) == 0:
+            files.append(H.AGENTS_DIR / f"{name}.md")
+    for name, _ in H.configured_skills().items():
+        if scanned["skills"].get(name, 0) == 0:
+            files.append(H.SKILLS_DIR / name / "SKILL.md")
+    return drop, scope, files
+
+
+def cmd_trim(apply: bool, tty: bool) -> int:
+    import json as _json, time as _time, shutil
+    scanned = H.scan(None)
+    if "error" in scanned:
+        print(scanned["error"], file=sys.stderr)
+        return 1
+    drop, scope, files = _plan(scanned)
+    c = H.color
+
+    print()
+    print(c("tare trim", H.BOLD, tty),
+          c("· proposed changes" if not apply else "· APPLYING", H.DIM, tty))
+    print(c("─" * 68, H.DIM, tty))
+
+    if not (drop or scope or files):
+        print("  Nothing to trim. Every configured piece has been invoked.")
+        print()
+        return 0
+
+    if drop:
+        print()
+        print(c("  REMOVE from global mcpServers", H.BOLD, tty),
+              c("— never invoked in any session", H.DIM, tty))
+        for n in drop:
+            print(f"    {c('-', H.RED, tty)} {n}")
+    if scope:
+        print()
+        print(c("  MOVE to the project that uses it", H.BOLD, tty),
+              c("— capability kept, cost removed elsewhere", H.DIM, tty))
+        for n, path in scope:
+            print(f"    {c('~', H.CYA, tty)} {n}  →  {path}")
+    if files:
+        print()
+        print(c("  DELETE BY HAND", H.BOLD, tty),
+              c("— never invoked. tare does not delete your files.", H.DIM, tty))
+        for f in files[:12]:
+            print(c(f"      {f}", H.DIM, tty))
+        if len(files) > 12:
+            print(c(f"      … {len(files)-12} more", H.DIM, tty))
+
+    print()
+    if not apply:
+        print(c("  Dry run. Nothing has been changed.", H.BOLD, tty))
+        print(c("  Re-run with --apply to edit ~/.claude.json "
+                "(a timestamped backup is written first).", H.DIM, tty))
+        print()
+        return 0
+
+    if not (drop or scope):
+        print(c("  Nothing to apply — the remaining items are files you delete yourself.",
+                H.BOLD, tty))
+        print()
+        return 0
+
+    try:
+        conf = _json.loads(H.CONFIG.read_text(errors="replace"))
+    except Exception as e:
+        print(f"cannot read {H.CONFIG}: {e}", file=sys.stderr)
+        return 1
+
+    backup = HOME_BACKUP / f"claude.json.{int(_time.time())}"
+    try:
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(H.CONFIG, backup)
+    except OSError as e:
+        print(f"refusing to edit without a backup ({e})", file=sys.stderr)
+        return 1
+
+    servers = conf.get("mcpServers") or {}
+    for n in drop:
+        servers.pop(n, None)
+    for n, path in scope:
+        spec = servers.pop(n, None)
+        if spec is not None:
+            conf.setdefault("projects", {}).setdefault(path, {}) \
+                .setdefault("mcpServers", {})[n] = spec
+    conf["mcpServers"] = servers
+
+    tmp = H.CONFIG.with_suffix(".json.tare-tmp")
+    try:
+        tmp.write_text(_json.dumps(conf, indent=2))
+        tmp.replace(H.CONFIG)
+    except OSError as e:
+        print(f"write failed, config untouched: {e}", file=sys.stderr)
+        return 1
+
+    print(c(f"  Applied. Backup at {backup}", H.GRN, tty))
+    print(c("  Restart Claude Code for the change to take effect.", H.DIM, tty))
+    print()
+    return 0
+
+
+HOME_BACKUP = H.HOME / ".tare" / "backups"
+
+
 def cmd_rules(argv: list[str]) -> int:
     sys.argv = ["tare rules"] + argv
     return R.main()
@@ -123,6 +258,9 @@ def main() -> int:
             print("usage: tare why <name>", file=sys.stderr)
             return 2
         return cmd_why(argv[1], sys.stdout.isatty())
+
+    if argv and argv[0] == "trim":
+        return cmd_trim("--apply" in argv, sys.stdout.isatty())
 
     if argv and argv[0] == "rules":
         return cmd_rules(argv[1:])
