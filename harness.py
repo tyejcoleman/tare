@@ -271,10 +271,19 @@ def report(scanned, a, days, tty=True):
     print()
 
     if dead_total or cold_total:
-        print(color(f"  {dead_total + cold_total} pieces of your harness are costing you context "
-                    f"on every session", BOLD, tty))
-        print(color("  and giving nothing back. Nothing here is edited for you — "
-                    "that is your call.", DIM, tty))
+        n = dead_total + cold_total
+        if days:
+            # Over a window, "gives nothing back" would be a claim we did not
+            # test. All we saw is that it did not come up in N days.
+            print(color(f"  {n} pieces of your harness did not come up once in "
+                        f"the last {days} days,", BOLD, tty))
+            print(color("  and loaded into every session anyway. Run without "
+                        "--days for the full record.", DIM, tty))
+        else:
+            print(color(f"  {n} pieces of your harness are costing you context "
+                        f"on every session", BOLD, tty))
+            print(color("  and giving nothing back. Nothing here is edited for you — "
+                        "that is your call.", DIM, tty))
         print()
         print(color("  Counted from recorded invocations only. A skill loaded some other "
                     "way,", DIM, tty))

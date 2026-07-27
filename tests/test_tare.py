@@ -203,6 +203,54 @@ class TestWindow(unittest.TestCase):
             self.assertIn("unused in 7d", out)
             self.assertNotIn("NEVER USED", out)
 
+    def test_windowed_summary_does_not_claim_it_gives_nothing_back(self):
+        """Over a window we only know it didn't come up — not that it's useless."""
+        with World() as w:
+            w.mcp("srv")
+            w.session(w.repo("app"), [("mcp__srv__x", {})], age_days=60)
+            scanned = H.scan(7)
+            _, out = run(H.report, scanned, H.assess(scanned), 7, tty=False)
+            self.assertNotIn("giving nothing back", out)
+            self.assertIn("did not come up once", out)
+
+    def test_unwindowed_summary_does_make_the_strong_claim(self):
+        with World() as w:
+            w.mcp("srv")
+            w.session(w.repo("app"), [("Read", {"file_path": "x"})])
+            scanned = H.scan(None)
+            _, out = run(H.report, scanned, H.assess(scanned), None, tty=False)
+            self.assertIn("giving nothing back", out)
+
+    def test_barely_used_is_not_called_earning_its_place(self):
+        """Two projects, so it is not 'misplaced' — just hardly ever used.
+        One call four months ago must not read as earning its keep."""
+        with World() as w:
+            w.mcp("rare")
+            for n in ("one", "two"):
+                w.session(w.repo(n), [("mcp__rare__x", {})])
+            _, out = run(T.cmd_why, "rare", False)
+            self.assertNotIn("Earning its place", out)
+            self.assertIn("Barely used", out)
+
+    def test_well_used_is_called_earning_its_place(self):
+        with World() as w:
+            w.mcp("busy")
+            for n in ("one", "two"):
+                w.session(w.repo(n), [("mcp__busy__x", {})] * 5)
+            _, out = run(T.cmd_why, "busy", False)
+            self.assertIn("Earning its place", out)
+
+    def test_rules_panel_is_branded_tare_not_rulecheck(self):
+        with World() as w:
+            p = w.repo("app")
+            w.claude_md(p, "- You must update `docs/changelog.md` every single time.\n")
+            rules = R.parse_rules(p)
+            sessions = [{"id": "s", "text": "x", "tool_calls": 500}]
+            R.evaluate(rules, sessions)
+            _, out = run(R.report, p, rules, sessions, tty=False)
+            self.assertIn("tare · rules", out)
+            self.assertNotIn("rulecheck", out)
+
     def test_unwindowed_report_does_say_never(self):
         with World() as w:
             w.mcp("srv")

@@ -100,6 +100,12 @@ def cmd_why(name: str, tty: bool) -> int:
         print(c("  Scoping it to that project keeps the capability and stops "
                 "every other", H.DIM, tty))
         print(c("  project paying for it.", H.DIM, tty))
+    elif calls <= 2:
+        # One call four months ago is not "earning its place", and saying so
+        # would be the tool flattering the setup instead of measuring it.
+        print(c(f"  Barely used — {calls} invocation"
+                f"{'' if calls == 1 else 's'} in the entire record.", H.YEL, tty))
+        print(c("  Not dead, but worth asking whether it should be global.", H.DIM, tty))
     else:
         print(c("  Earning its place.", H.GRN, tty))
     print()

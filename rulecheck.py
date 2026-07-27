@@ -301,7 +301,7 @@ def report(repo, rules, sessions, tty=True):
     thin = calls < MIN_EVIDENCE_CALLS
 
     print()
-    print(color(f"rulecheck {VERSION}", BOLD, tty), color(f"· {repo}", DIM, tty))
+    print(color("tare · rules", BOLD, tty), color(f"· {repo}", DIM, tty))
     print(color("─" * 66, DIM, tty))
     print(f"  {len(rules)} rules found · {len(sessions)} sessions · "
           f"{calls:,} recorded tool calls")
@@ -408,8 +408,8 @@ def load_history(repo: Path) -> list[dict]:
 
 def history_report(repo, rules, rows, tty=True):
     print()
-    print(color(f"rulecheck {VERSION}", BOLD, tty),
-          color(f"· history · {repo}", DIM, tty))
+    print(color("tare · rules · history", BOLD, tty),
+          color(f"· {repo}", DIM, tty))
     print(color("─" * 66, DIM, tty))
 
     if not rows:
