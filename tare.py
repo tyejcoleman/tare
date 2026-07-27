@@ -106,8 +106,9 @@ def cmd_why(name: str, tty: bool) -> int:
     return 0
 
 
-def _plan(scanned: dict) -> tuple[list, list, list]:
-    """What the audit implies: servers to drop, servers to scope, files to delete."""
+def _plan(scanned: dict) -> tuple[list, list, list, list]:
+    """What the audit implies: servers to drop, servers to scope, files to
+    delete by hand, and servers we know are misplaced but cannot place."""
     import re as _re
     cfg = H.configured_mcp()
     try:
@@ -117,7 +118,7 @@ def _plan(scanned: dict) -> tuple[list, list, list]:
     proj_keys = list((conf.get("projects") or {}).keys())
     slug = {_re.sub(r"[^A-Za-z0-9]+", "-", k): k for k in proj_keys}
 
-    drop, scope = [], []
+    drop, scope, unresolved = [], [], []
     for name, where in sorted(cfg.items()):
         if where != "global":
             continue
@@ -129,9 +130,13 @@ def _plan(scanned: dict) -> tuple[list, list, list]:
             # The transcript dir name is a lossy slug; recover the true path by
             # slugifying the real project keys and matching, never by unslugging.
             real = slug.get(projs[0])
+            if real is None:
+                # We know it belongs somewhere else but cannot prove where.
+                # Say so — silently dropping it would read as "nothing to do".
+                unresolved.append((name, projs[0]))
             # Scoping to the home directory is not scoping — sessions started
             # from ~ are not a project, and moving it there hides it everywhere.
-            if real and Path(real).resolve() != H.HOME.resolve():
+            elif Path(real).resolve() != H.HOME.resolve():
                 scope.append((name, real))
 
     files = []
@@ -141,7 +146,7 @@ def _plan(scanned: dict) -> tuple[list, list, list]:
     for name, _ in H.configured_skills().items():
         if scanned["skills"].get(name, 0) == 0:
             files.append(H.SKILLS_DIR / name / "SKILL.md")
-    return drop, scope, files
+    return drop, scope, files, unresolved
 
 
 def cmd_trim(apply: bool, tty: bool) -> int:
@@ -150,7 +155,7 @@ def cmd_trim(apply: bool, tty: bool) -> int:
     if "error" in scanned:
         print(scanned["error"], file=sys.stderr)
         return 1
-    drop, scope, files = _plan(scanned)
+    drop, scope, files, unresolved = _plan(scanned)
     c = H.color
 
     print()
@@ -158,7 +163,7 @@ def cmd_trim(apply: bool, tty: bool) -> int:
           c("· proposed changes" if not apply else "· APPLYING", H.DIM, tty))
     print(c("─" * 68, H.DIM, tty))
 
-    if not (drop or scope or files):
+    if not (drop or scope or files or unresolved):
         print("  Nothing to trim. Every configured piece has been invoked.")
         print()
         return 0
@@ -175,6 +180,16 @@ def cmd_trim(apply: bool, tty: bool) -> int:
               c("— capability kept, cost removed elsewhere", H.DIM, tty))
         for n, path in scope:
             print(f"    {c('~', H.CYA, tty)} {n}  →  {path}")
+    if unresolved:
+        print()
+        print(c("  MOVE BY HAND", H.BOLD, tty),
+              c("— used in one project, but tare cannot prove which path", H.DIM, tty))
+        for n, s in unresolved:
+            print(f"    {c('?', H.YEL, tty)} {n}  →  {H._pretty(s)}")
+        print(c("       The transcript folder name is a lossy encoding of the path, "
+                "and", H.DIM, tty))
+        print(c("       tare will not guess a path it cannot verify.", H.DIM, tty))
+
     if files:
         print()
         print(c("  DELETE BY HAND", H.BOLD, tty),

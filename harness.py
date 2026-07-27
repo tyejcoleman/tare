@@ -36,13 +36,16 @@ MAX_FILE = 80_000_000
 # Matched against the raw bytes of a transcript. Regex over bytes is ~20x faster
 # than parsing every line as JSON, and these keys only appear inside tool_use
 # blocks, so there is nothing to disambiguate.
-RE_MCP = re.compile(rb'"name":"mcp__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_]+)"')
+# Whitespace-tolerant on purpose. A transcript serialized with standard JSON
+# spacing would otherwise match nothing, and a silent zero here would tell
+# someone to delete a server they use every day.
+RE_MCP = re.compile(rb'"name"\s*:\s*"mcp__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_]+)"')
 # Any mention, not just a call. Tool listings appear verbatim in transcripts, so
 # the set of names ever seen is a floor on how many tools a server exposes —
 # i.e. how much of your context it occupies whether you use it or not.
 RE_MCP_ANY = re.compile(rb'mcp__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_]+)')
-RE_AGENT = re.compile(rb'"subagent_type":"([a-zA-Z0-9:_-]+)"')
-RE_SKILL = re.compile(rb'"skill":"([a-zA-Z0-9:._-]+)"')
+RE_AGENT = re.compile(rb'"subagent_type"\s*:\s*"([a-zA-Z0-9:_-]+)"')
+RE_SKILL = re.compile(rb'"skill"\s*:\s*"([a-zA-Z0-9:._-]+)"')
 
 
 # ----------------------------------------------------------------- what exists

@@ -36,6 +36,8 @@ VERSION = "0.3.0"
 
 # Where the session hook accrues its record. One line per session.
 HISTORY = Path.home() / ".tare" / "history.jsonl"
+# Module-level so tests can point the whole thing at a synthetic home.
+PROJECTS = Path.home() / ".claude" / "projects"
 
 # ---------------------------------------------------------------- rule parsing
 
@@ -172,7 +174,7 @@ def _add(rules: list, seen: set, raw: str, rel: str, i: int) -> None:
 
 def project_dir_for(repo: Path) -> Path | None:
     """Claude Code encodes the project path as the transcript directory name."""
-    base = Path.home() / ".claude" / "projects"
+    base = PROJECTS
     if not base.is_dir():
         return None
     # Claude Code slugifies the absolute path: every non-alphanumeric run
