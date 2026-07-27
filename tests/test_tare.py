@@ -368,6 +368,24 @@ class TestTrim(unittest.TestCase):
             run(T.cmd_trim, True, False)
             self.assertIn("orphan", w.read_config()["mcpServers"])
 
+    def test_unused_skills_carry_a_reliability_warning(self):
+        """Skills can be dispatched without a recorded invocation. Listing one
+        for deletion without saying so risks someone removing working config."""
+        with World() as w:
+            w.skill("maybe-used-indirectly")
+            w.session(w.repo("app"), [("Read", {"file_path": "x"})])
+            _, out = run(T.cmd_trim, False, False)
+            self.assertIn("least reliable signal", out)
+            self.assertIn("before deleting one", out)
+
+    def test_no_skill_warning_when_no_skills_listed(self):
+        with World() as w:
+            w.agent("unused-agent")
+            w.session(w.repo("app"), [("Read", {"file_path": "x"})])
+            _, out = run(T.cmd_trim, False, False)
+            self.assertIn("DELETE BY HAND", out)
+            self.assertNotIn("least reliable signal", out)
+
     def test_nothing_to_trim_says_so(self):
         with World() as w:
             w.mcp("busy")

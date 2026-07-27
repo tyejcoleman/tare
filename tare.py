@@ -204,6 +204,14 @@ def cmd_trim(apply: bool, tty: bool) -> int:
             print(c(f"      {f}", H.DIM, tty))
         if len(files) > 12:
             print(c(f"      … {len(files)-12} more", H.DIM, tty))
+        if any("skills" in str(f) for f in files):
+            print()
+            print(c("       Skills are the least reliable signal here.", H.YEL, tty))
+            print(c("       A skill dispatched as a sub-step of another skill may leave "
+                    "no", H.DIM, tty))
+            print(c("       recorded invocation, so it reads as unused while still doing "
+                    "work.", H.DIM, tty))
+            print(c("       Check with 'tare why <name>' before deleting one.", H.DIM, tty))
 
     print()
     if not apply:
