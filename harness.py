@@ -32,6 +32,9 @@ CONFIG = HOME / ".claude.json"
 AGENTS_DIR = HOME / ".claude" / "agents"
 SKILLS_DIR = HOME / ".claude" / "skills"
 MAX_FILE = 80_000_000
+# A session touching this many distinct skill or agent definitions is sweeping
+# the catalog, not using one of them.
+SWEEP_THRESHOLD = 5
 
 # Matched against the raw bytes of a transcript. Regex over bytes is ~20x faster
 # than parsing every line as JSON, and these keys only appear inside tool_use
@@ -111,7 +114,7 @@ def scan(days: int | None) -> dict:
     agents_read: dict[str, int] = defaultdict(int)
     skills_read: dict[str, int] = defaultdict(int)
     last: dict[str, float] = {}
-    files = sessions = 0
+    files = sessions = sweeps = 0
 
     if not PROJECTS.is_dir():
         return {"error": f"no transcripts at {PROJECTS}"}
@@ -148,16 +151,28 @@ def scan(days: int | None) -> dict:
             skills[n] += 1
             _bump(last, "skill:" + n, st.st_mtime)
             touched = True
-        for s in set(RE_SKILL_FILE.findall(data)):
-            n = s.decode()
-            skills_read[n] += 1
-            _bump(last, "skill:" + n, st.st_mtime)
-            touched = True
-        for a in set(RE_AGENT_FILE.findall(data)):
-            n = a.decode()
-            agents_read[n] += 1
-            _bump(last, "agent:" + n, st.st_mtime)
-            touched = True
+        # A session that opens twenty skill files is auditing the catalog, not
+        # using a skill. Measured: one session read 20 of 21 skills on this
+        # machine, which would credit the whole catalog as live off a single
+        # maintenance sweep. Reads from such a session count for nothing.
+        sk = set(RE_SKILL_FILE.findall(data))
+        if len(sk) < SWEEP_THRESHOLD:
+            for s in sk:
+                n = s.decode()
+                skills_read[n] += 1
+                _bump(last, "skill:" + n, st.st_mtime)
+                touched = True
+        else:
+            sweeps += 1
+        ag = set(RE_AGENT_FILE.findall(data))
+        if len(ag) < SWEEP_THRESHOLD:
+            for a in ag:
+                n = a.decode()
+                agents_read[n] += 1
+                _bump(last, "agent:" + n, st.st_mtime)
+                touched = True
+        else:
+            sweeps += 1
         if touched:
             sessions += 1
 
@@ -173,6 +188,7 @@ def scan(days: int | None) -> dict:
         "last": last,
         "files": files,
         "sessions": sessions,
+        "sweeps": sweeps,
     }
 
 

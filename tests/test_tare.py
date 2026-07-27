@@ -117,6 +117,43 @@ class TestHarnessDetection(unittest.TestCase):
             self.assertEqual(r["read"], 0)
             self.assertEqual(r["calls"], 0)
 
+    def test_a_catalog_sweep_is_not_usage(self):
+        """One session read 20 of 21 skills on the author's machine. Crediting
+        those as usage marked a dead catalog live."""
+        with World() as w:
+            names = [f"s{i}" for i in range(8)]
+            for n in names:
+                w.skill(n)
+            w.session(w.repo("app"), [
+                ("Read", {"file_path": str(w.skills / n / "SKILL.md")})
+                for n in names])
+            rows = w.rows("Skills")
+            for n in names:
+                self.assertEqual(rows[n]["calls"], 0, n)
+            self.assertEqual(H.scan(None)["sweeps"], 1)
+
+    def test_a_small_number_of_reads_is_usage(self):
+        with World() as w:
+            for n in ("a", "b"):
+                w.skill(n)
+            w.session(w.repo("app"), [
+                ("Read", {"file_path": str(w.skills / n / "SKILL.md")})
+                for n in ("a", "b")])
+            self.assertEqual(w.rows("Skills")["a"]["calls"], 1)
+            self.assertEqual(H.scan(None)["sweeps"], 0)
+
+    def test_a_sweep_does_not_suppress_real_invocations(self):
+        """The sweep rule drops READS only. A dispatch is still a dispatch."""
+        with World() as w:
+            names = [f"s{i}" for i in range(8)]
+            for n in names:
+                w.skill(n)
+            w.session(w.repo("app"),
+                      [("Read", {"file_path": str(w.skills / n / "SKILL.md")})
+                       for n in names] + [("Skill", {"skill": "s0"})])
+            self.assertEqual(w.rows("Skills")["s0"]["calls"], 1)
+            self.assertEqual(w.rows("Skills")["s1"]["calls"], 0)
+
     def test_invoked_and_read_are_reported_separately(self):
         with World() as w:
             w.skill("both")
