@@ -1,20 +1,20 @@
 {
-  "name": "rulecheck",
-  "description": "Find out which of your CLAUDE.md rules actually fire. Reads the session transcripts already on your disk and marks every rule FIRED, DORMANT (never once applied), or UNOBSERVABLE (nothing a machine can check). Local, deterministic, no network.",
-  "version": "0.2.0",
+  "name": "tare",
+  "description": "What is your agent harness actually carrying? Measures every configured MCP server, subagent, skill and CLAUDE.md rule against what you have actually invoked, from the session transcripts already on your disk. Deterministic, local, read-only.",
+  "version": "0.1.0",
   "author": {
     "name": "Tye Coleman",
     "email": "taikicoleman@gmail.com"
   },
-  "homepage": "https://github.com/tyejcoleman/rulecheck",
-  "repository": "https://github.com/tyejcoleman/rulecheck",
+  "homepage": "https://github.com/tyejcoleman/tare",
+  "repository": "https://github.com/tyejcoleman/tare",
   "license": "Apache-2.0",
   "keywords": [
-    "claude-md",
-    "rules",
+    "mcp",
     "context",
+    "harness",
+    "technical-debt",
     "audit",
-    "observability",
-    "governance"
+    "claude-md"
   ]
 }

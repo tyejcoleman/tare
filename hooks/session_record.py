@@ -8,7 +8,7 @@ tell you "this rule has never fired" but never "this rule stopped firing five
 weeks ago" — and the second statement is the useful one.
 
 This hook fixes that. At the end of every session it appends ONE compact line
-to ~/.rulecheck/history.jsonl recording which rules the session engaged. The
+to ~/.tare/history.jsonl recording which rules the session engaged. The
 record then survives the transcripts it was derived from.
 
 Local only. It writes one file on this machine and sends nothing anywhere.
@@ -22,7 +22,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-HISTORY = Path.home() / ".rulecheck" / "history.jsonl"
+HISTORY = Path.home() / ".tare" / "history.jsonl"
 MAX_TRANSCRIPT_BYTES = 60_000_000
 
 

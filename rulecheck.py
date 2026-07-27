@@ -35,7 +35,7 @@ from pathlib import Path
 VERSION = "0.3.0"
 
 # Where the session hook accrues its record. One line per session.
-HISTORY = Path.home() / ".rulecheck" / "history.jsonl"
+HISTORY = Path.home() / ".tare" / "history.jsonl"
 
 # ---------------------------------------------------------------- rule parsing
 

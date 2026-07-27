@@ -13,7 +13,7 @@ Audit the rule files in this repo against the Claude Code sessions already recor
    current working directory:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/rulecheck.py" $ARGUMENTS
+   python3 "${CLAUDE_PLUGIN_ROOT}/tare.py" rules $ARGUMENTS
    ```
 
 2. Show the report output to the user as-is. It is already formatted — do not restate the whole
@@ -34,5 +34,5 @@ Audit the rule files in this repo against the Claude Code sessions already recor
 
 - `FIRED` means the agent touched what the rule governs. It is **engagement, not compliance** — it
   does not prove the rule was obeyed. Never describe a FIRED rule as "followed".
-- Use `python3 "${CLAUDE_PLUGIN_ROOT}/rulecheck.py" --rule N` to show the evidence behind any single
+- Use `python3 "${CLAUDE_PLUGIN_ROOT}/tare.py" rules --rule N` to show the evidence behind any single
   verdict if the user questions one.

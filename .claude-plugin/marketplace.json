@@ -1,21 +1,21 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "rulecheck",
-  "description": "rulecheck — measure which of your agent rules actually fire",
+  "name": "tare",
+  "description": "tare \u2014 what is your agent harness actually carrying?",
   "owner": {
     "name": "Tye Coleman",
     "email": "taikicoleman@gmail.com"
   },
   "plugins": [
     {
-      "name": "rulecheck",
-      "description": "Find out which of your CLAUDE.md rules actually fire. Reads the session transcripts already on your disk and marks every rule FIRED, DORMANT (never once applied), or UNOBSERVABLE (nothing a machine can check). Local, deterministic, no network.",
+      "name": "tare",
+      "description": "What is your agent harness actually carrying? Measures every configured MCP server, subagent, skill and CLAUDE.md rule against what you have actually invoked, from the session transcripts already on your disk. Deterministic, local, read-only.",
       "author": {
         "name": "Tye Coleman"
       },
       "category": "productivity",
       "source": "./",
-      "homepage": "https://github.com/tyejcoleman/rulecheck"
+      "homepage": "https://github.com/tyejcoleman/tare"
     }
   ]
 }

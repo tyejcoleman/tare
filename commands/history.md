@@ -6,14 +6,14 @@ allowed-tools: ["Bash", "Read"]
 # rulecheck history
 
 A single run only sees the transcripts still on disk. The session hook records one compact line per
-session to `~/.rulecheck/history.jsonl`, so the record keeps accruing even as transcripts age out.
+session to `~/.tare/history.jsonl`, so the record keeps accruing even as transcripts age out.
 
 ## Steps
 
 1. Run:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/rulecheck.py" --history $ARGUMENTS
+   python3 "${CLAUDE_PLUGIN_ROOT}/tare.py" rules --history $ARGUMENTS
    ```
 
 2. Show the output. Then say, briefly, what changed — a rule that has gone quiet, or one that has
