@@ -84,6 +84,56 @@ class TestHarnessDetection(unittest.TestCase):
             self.assertEqual(sk["used-skill"]["calls"], 1)
             self.assertEqual(sk["unused-skill"]["calls"], 0)
 
+    def test_reading_a_skill_counts_as_using_it(self):
+        """A skill is as often Read as dispatched. Counting only dispatches
+        reported every hand-written skill on the author's machine as dead."""
+        with World() as w:
+            w.skill("read-not-invoked")
+            w.session(w.repo("app"), [("Read", {
+                "file_path": str(w.skills / "read-not-invoked" / "SKILL.md")})])
+            r = w.rows("Skills")["read-not-invoked"]
+            self.assertEqual(r["invoked"], 0)
+            self.assertEqual(r["read"], 1)
+            self.assertEqual(r["calls"], 1)
+
+    def test_reading_an_agent_definition_counts(self):
+        with World() as w:
+            w.agent("read-only")
+            w.session(w.repo("app"), [("Read", {
+                "file_path": str(w.agents / "read-only.md")})])
+            self.assertEqual(w.rows("Subagents")["read-only"]["calls"], 1)
+
+    def test_a_bare_path_mention_is_not_usage(self):
+        """One `ls ~/.claude/skills` must not credit every skill on the machine.
+        Measured: bare-mention counting inflated real usage by 3-7x."""
+        with World() as w:
+            w.skill("only-listed")
+            w.session(w.repo("app"), [
+                ("Bash", {"command": f"ls {w.skills}"}),
+                ("Read", {"file_path": "notes.md",
+                          "content": f"see {w.skills}/only-listed/SKILL.md"}),
+            ])
+            r = w.rows("Skills")["only-listed"]
+            self.assertEqual(r["read"], 0)
+            self.assertEqual(r["calls"], 0)
+
+    def test_invoked_and_read_are_reported_separately(self):
+        with World() as w:
+            w.skill("both")
+            w.session(w.repo("app"), [
+                ("Skill", {"skill": "both"}),
+                ("Read", {"file_path": str(w.skills / "both" / "SKILL.md")}),
+            ])
+            r = w.rows("Skills")["both"]
+            self.assertEqual((r["invoked"], r["read"], r["calls"]), (1, 1, 2))
+
+    def test_repeated_reads_in_one_session_count_once(self):
+        with World() as w:
+            w.skill("s")
+            fp = str(w.skills / "s" / "SKILL.md")
+            w.session(w.repo("app"), [("Read", {"file_path": fp})] * 5)
+            self.assertEqual(w.rows("Skills")["s"]["read"], 1)
+
     def test_tools_exposed_counts_mentions_not_just_calls(self):
         with World() as w:
             w.mcp("srv")

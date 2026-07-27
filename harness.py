@@ -47,6 +47,19 @@ RE_MCP_ANY = re.compile(rb'mcp__([a-zA-Z0-9_-]+)__([a-zA-Z0-9_]+)')
 RE_AGENT = re.compile(rb'"subagent_type"\s*:\s*"([a-zA-Z0-9:_-]+)"')
 RE_SKILL = re.compile(rb'"skill"\s*:\s*"([a-zA-Z0-9:._-]+)"')
 
+# Invocation is not the only way these get used. A skill is just as often READ
+# directly — the model opens SKILL.md instead of dispatching the Skill tool —
+# and that leaves a different trace entirely. Counting only dispatches reported
+# every hand-written skill on this machine as dead when all of them were in
+# active use. Reading the definition IS using it.
+# Anchored to the file_path of an actual tool call. A bare path mention is not
+# evidence — one `ls ~/.claude/skills` would otherwise credit every skill on the
+# machine at once, which inflated this by 3-7x when first measured.
+RE_SKILL_FILE = re.compile(
+    rb'"file_path"\s*:\s*"[^"]*skills/([a-zA-Z0-9:._-]+)/SKILL\.md"')
+RE_AGENT_FILE = re.compile(
+    rb'"file_path"\s*:\s*"[^"]*agents/([a-zA-Z0-9_-]+)\.md"')
+
 
 # ----------------------------------------------------------------- what exists
 
@@ -95,6 +108,8 @@ def scan(days: int | None) -> dict:
     mcp_exposed: dict[str, set] = defaultdict(set)
     agents: dict[str, int] = defaultdict(int)
     skills: dict[str, int] = defaultdict(int)
+    agents_read: dict[str, int] = defaultdict(int)
+    skills_read: dict[str, int] = defaultdict(int)
     last: dict[str, float] = {}
     files = sessions = 0
 
@@ -133,6 +148,16 @@ def scan(days: int | None) -> dict:
             skills[n] += 1
             _bump(last, "skill:" + n, st.st_mtime)
             touched = True
+        for s in set(RE_SKILL_FILE.findall(data)):
+            n = s.decode()
+            skills_read[n] += 1
+            _bump(last, "skill:" + n, st.st_mtime)
+            touched = True
+        for a in set(RE_AGENT_FILE.findall(data)):
+            n = a.decode()
+            agents_read[n] += 1
+            _bump(last, "agent:" + n, st.st_mtime)
+            touched = True
         if touched:
             sessions += 1
 
@@ -143,6 +168,8 @@ def scan(days: int | None) -> dict:
         "mcp_exposed": {k: len(v) for k, v in mcp_exposed.items()},
         "agents": dict(agents),
         "skills": dict(skills),
+        "agents_read": dict(agents_read),
+        "skills_read": dict(skills_read),
         "last": last,
         "files": files,
         "sessions": sessions,
@@ -160,16 +187,21 @@ def assess(scanned: dict) -> dict:
     now = time.time()
     groups = []
 
-    def build(title, unit, configured, counts, prefix, note):
+    def build(title, unit, configured, counts, prefix, note, reads=None):
+        reads = reads or {}
         rows = []
         for name, where in sorted(configured.items()):
-            n = counts.get(name, 0)
+            invoked = counts.get(name, 0)
+            was_read = reads.get(name, 0)
+            n = invoked + was_read
             ts = scanned["last"].get(f"{prefix}:{name}")
             projs = scanned["mcp_projects"].get(name, []) if prefix == "mcp" else []
             rows.append({
                 "name": name,
                 "where": where,
                 "calls": n,
+                "invoked": invoked,
+                "read": was_read,
                 "days": int((now - ts) // 86400) if ts else None,
                 "tools_used": len(scanned["mcp_tools"].get(name, [])) if prefix == "mcp" else None,
                 "tools_exposed": scanned["mcp_exposed"].get(name) if prefix == "mcp" else None,
@@ -188,10 +220,13 @@ def assess(scanned: dict) -> dict:
         "Every connected server loads its tool definitions into context on every session."))
     groups.append(build(
         "Subagents", "agent", configured_agents(), scanned["agents"], "agent",
-        "Defined in ~/.claude/agents. Each one's description is offered to the model."))
+        "Counts both spawns and reads of the definition file.",
+        reads=scanned.get("agents_read")))
     groups.append(build(
         "Skills", "skill", configured_skills(), scanned["skills"], "skill",
-        "Defined in ~/.claude/skills. Each one's description is offered to the model."))
+        "Counts both Skill invocations and direct reads of SKILL.md — a skill "
+        "read is a skill used.",
+        reads=scanned.get("skills_read")))
     return {"groups": groups}
 
 
@@ -251,6 +286,8 @@ def report(scanned, a, days, tty=True):
             if r.get("tools_exposed"):
                 extra = color(f"  {r['tools_used']}/{r['tools_exposed']} tools used",
                               DIM, tty)
+            elif r.get("read") and r.get("invoked") is not None:
+                extra = color(f"  {r['invoked']} invoked · {r['read']} read", DIM, tty)
             print(f"  {dot} {r['name']:<20} {r['calls']:>6} calls   {tag}{extra}")
             if r.get("misplaced"):
                 print(color(f"       ↳ global, but only ever used in "

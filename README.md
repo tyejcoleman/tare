@@ -25,16 +25,21 @@ tare 0.1.0 · 1324 transcripts · all time
   ● playwright             3570 calls   0d ago    21 tools used
 
   ──────────────────────────────────────────────────────────────────
-  ●  23  never used     loaded every session, never once invoked
-  ●   3  cold           not touched in 21+ days
-  ●  22  live           earning their place
-
-  26 pieces of your harness are costing you context on every session
-  and giving nothing back.
+  ●   4  never used     loaded every session, never once invoked
+  ●   2  cold           not touched in 21+ days
+  ●  42  live           earning their place
 ```
 
-That's a real run on the author's machine. **More than half of a working setup had never
-been invoked once** — including a tool the author built, packaged, and connected himself.
+That's a real run on the author's machine. Four MCP servers — including one the author
+built, packaged and connected himself — have **never been invoked once**, and one of them
+ships 33 tool definitions into every session.
+
+**A note on how that number got smaller.** The first version of this counted only `Skill`
+dispatches and reported 23 dead components. That was wrong: a skill is just as often *read*
+directly as dispatched, and reading the definition is using it. Counting reads too dropped
+the figure from 23 to 4. An intermediate version then counted any mention of a path, which
+inflated it 3-7x, because one `ls ~/.claude/skills` credits every skill at once. Usage now
+means an actual tool call with that file as its target — nothing looser.
 
 ## Install
 
