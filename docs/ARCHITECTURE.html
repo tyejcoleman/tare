@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rulecheck — architecture</title>
+<style>
+  :root{
+    --paper:#f7f8f8;
+    --raised:#ffffff;
+    --ink:#12181a;
+    --ink-2:#3d4a4d;
+    --ink-3:#6b7679;
+    --line:#dfe4e4;
+    --line-2:#eceff0;
+    --accent:#0a6b70;
+    --fired:#2f7a4a;
+    --dormant:#a06a08;
+    --unobs:#a33a32;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#0e1315; --raised:#151b1e; --ink:#e6ecec; --ink-2:#adbabc;
+      --ink-3:#77878a; --line:#263033; --line-2:#1c2427; --accent:#4fc7cd;
+      --fired:#5fbf85; --dormant:#d9a53f; --unobs:#e0776c;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0e1315; --raised:#151b1e; --ink:#e6ecec; --ink-2:#adbabc;
+    --ink-3:#77878a; --line:#263033; --line-2:#1c2427; --accent:#4fc7cd;
+    --fired:#5fbf85; --dormant:#d9a53f; --unobs:#e0776c;
+  }
+  :root[data-theme="light"]{
+    --paper:#f7f8f8; --raised:#ffffff; --ink:#12181a; --ink-2:#3d4a4d;
+    --ink-3:#6b7679; --line:#dfe4e4; --line-2:#eceff0; --accent:#0a6b70;
+    --fired:#2f7a4a; --dormant:#a06a08; --unobs:#a33a32;
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:16px; line-height:1.65;
+    padding:0 24px 96px;
+  }
+  .wrap{max-width:820px; margin:0 auto}
+
+  /* ---------- masthead ---------- */
+  header.masthead{
+    padding:72px 0 40px; border-bottom:1px solid var(--line);
+    display:flex; flex-direction:column; gap:20px;
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--accent); margin:0;
+  }
+  h1{
+    font-family:var(--mono); font-weight:600; font-size:clamp(30px,5.2vw,46px);
+    line-height:1.1; letter-spacing:-.02em; margin:0; text-wrap:balance;
+  }
+  .standfirst{
+    margin:0; font-size:19px; line-height:1.55; color:var(--ink-2);
+    max-width:60ch; text-wrap:pretty;
+  }
+  .meta{
+    font-family:var(--mono); font-size:12.5px; color:var(--ink-3);
+    display:flex; flex-wrap:wrap; gap:8px 20px; margin:0;
+  }
+
+  /* ---------- sections ---------- */
+  section{padding:56px 0 0; display:flex; flex-direction:column; gap:20px}
+  section + section{border-top:1px solid var(--line-2)}
+  .shead{display:flex; align-items:baseline; gap:14px}
+  .num{
+    font-family:var(--mono); font-size:12px; color:var(--accent);
+    letter-spacing:.1em; padding-top:4px;
+  }
+  h2{
+    font-family:var(--mono); font-weight:600; font-size:23px; letter-spacing:-.01em;
+    margin:0; line-height:1.25;
+  }
+  h3{
+    font-family:var(--mono); font-weight:600; font-size:15px; margin:0;
+    letter-spacing:.01em; color:var(--ink);
+  }
+  p{margin:0; max-width:68ch; text-wrap:pretty}
+  .lede{color:var(--ink-2)}
+  strong{font-weight:600}
+  code{
+    font-family:var(--mono); font-size:.87em; background:var(--line-2);
+    padding:.12em .38em; border-radius:3px; color:var(--ink);
+  }
+  a{color:var(--accent)}
+
+  /* ---------- verdict chips ---------- */
+  .verdicts{display:flex; flex-direction:column; gap:0; border-top:1px solid var(--line)}
+  .verdict{
+    display:grid; grid-template-columns:minmax(0,168px) minmax(0,1fr);
+    gap:6px 24px; padding:18px 0; border-bottom:1px solid var(--line);
+    align-items:start;
+  }
+  .vname{
+    font-family:var(--mono); font-size:13px; font-weight:600; letter-spacing:.06em;
+    display:flex; align-items:center; gap:9px; padding-top:2px;
+  }
+  .dot{width:9px; height:9px; border-radius:50%; flex:none}
+  .v-fired .dot{background:var(--fired)} .v-fired .vname{color:var(--fired)}
+  .v-dorm  .dot{background:var(--dormant)} .v-dorm .vname{color:var(--dormant)}
+  .v-unobs .dot{background:var(--unobs)} .v-unobs .vname{color:var(--unobs)}
+  .vbody{display:flex; flex-direction:column; gap:6px}
+  .vnote{font-size:14.5px; color:var(--ink-3); max-width:60ch}
+
+  /* ---------- pipeline ---------- */
+  .pipe{display:flex; flex-direction:column; gap:0; border-top:1px solid var(--line)}
+  .stage{
+    display:grid; grid-template-columns:44px minmax(0,1fr);
+    gap:0 20px; padding:22px 0; border-bottom:1px solid var(--line);
+  }
+  .stage-n{
+    font-family:var(--mono); font-size:12px; color:var(--ink-3);
+    letter-spacing:.08em; padding-top:3px;
+  }
+  .stage-body{display:flex; flex-direction:column; gap:10px; min-width:0}
+  .io{
+    font-family:var(--mono); font-size:12.5px; color:var(--ink-3);
+    display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  }
+  .io b{font-weight:600; color:var(--ink-2)}
+  .arrow{color:var(--accent)}
+
+  /* ---------- code blocks ---------- */
+  .code{
+    background:var(--raised); border:1px solid var(--line); border-radius:5px;
+    padding:16px 18px; overflow-x:auto;
+  }
+  .code pre{
+    margin:0; font-family:var(--mono); font-size:12.5px; line-height:1.7;
+    color:var(--ink-2); white-space:pre;
+  }
+  .code .k{color:var(--accent)}
+  .code .c{color:var(--ink-3)}
+  .code .g{color:var(--fired)} .code .y{color:var(--dormant)} .code .r{color:var(--unobs)}
+
+  /* ---------- tables ---------- */
+  .tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:5px; background:var(--raised)}
+  table{border-collapse:collapse; width:100%; min-width:520px; font-size:14px}
+  th,td{text-align:left; padding:11px 16px; border-bottom:1px solid var(--line-2); vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  th{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ink-3); font-weight:600;
+    background:var(--line-2);
+  }
+  td.m{font-family:var(--mono); font-size:12.5px; white-space:nowrap}
+  td.num{font-variant-numeric:tabular-nums; text-align:right}
+
+  /* ---------- callout ---------- */
+  .note{
+    border-left:2px solid var(--accent); padding:2px 0 2px 20px;
+    display:flex; flex-direction:column; gap:8px;
+  }
+  .note .label{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--accent);
+  }
+
+  ul{margin:0; padding-left:20px; display:flex; flex-direction:column; gap:9px; max-width:68ch}
+  li::marker{color:var(--ink-3)}
+
+  footer{
+    margin-top:72px; padding-top:28px; border-top:1px solid var(--line);
+    font-family:var(--mono); font-size:12.5px; color:var(--ink-3);
+    display:flex; flex-direction:column; gap:6px;
+  }
+
+  @media (max-width:560px){
+    body{padding:0 18px 72px}
+    .verdict{grid-template-columns:1fr; gap:8px}
+    .stage{grid-template-columns:1fr; gap:10px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">rulecheck 0.2.0 · architecture</p>
+  <h1>How it works</h1>
+  <p class="standfirst">
+    rulecheck reads the Claude Code session transcripts already sitting on your disk and
+    reports, for every rule in your <code>CLAUDE.md</code>, whether the agent has ever
+    actually reached the thing that rule governs.
+  </p>
+  <p class="meta">
+    <span>~400 lines of Python</span>
+    <span>stdlib only</span>
+    <span>no network</span>
+    <span>no model in the judging path</span>
+  </p>
+</header>
+
+<section>
+  <div class="shead"><span class="num">01</span><h2>The question</h2></div>
+  <p class="lede">
+    A rule file is loaded into context on every single run. It costs tokens on every request,
+    forever. Nobody has any idea which lines in it have ever mattered. rulecheck assigns each
+    rule exactly one of three verdicts.
+  </p>
+
+  <div class="verdicts">
+    <div class="verdict v-fired">
+      <div class="vname"><span class="dot"></span>FIRED</div>
+      <div class="vbody">
+        <p>The agent really did touch what this rule governs, in a recorded session.</p>
+        <p class="vnote">Engagement, not compliance — see §08. It proves the agent was in the
+        neighbourhood, not that it obeyed.</p>
+      </div>
+    </div>
+    <div class="verdict v-dorm">
+      <div class="vname"><span class="dot"></span>DORMANT</div>
+      <div class="vbody">
+        <p>The rule is machine-observable, but no session has ever engaged it.</p>
+        <p class="vnote">A dead letter. It pays rent in your context window on every run and has
+        never once applied.</p>
+      </div>
+    </div>
+    <div class="verdict v-unobs">
+      <div class="vname"><span class="dot"></span>UNOBSERVABLE</div>
+      <div class="vbody">
+        <p>The rule names nothing a machine can check — no path, no command, no identifier.</p>
+        <p class="vnote">It may be excellent advice. It cannot be enforced or measured. In
+        practice this is the largest bucket, and it is the finding, not a parser failure.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="num">02</span><h2>Two inputs, both already on disk</h2></div>
+  <p class="lede">
+    rulecheck introduces no new data collection. Everything it reads was written by tools you
+    were already running.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Input</th><th>Where</th><th>What is taken from it</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="m">Rule files</td>
+          <td class="m">CLAUDE.md, AGENTS.md,<br>.claude/CLAUDE.md,<br>.cursorrules, .cursor/rules,<br>AGENT.md, CONVENTIONS.md</td>
+          <td>Normative statements — the lines that tell an agent what it must, must not, or should do.</td>
+        </tr>
+        <tr>
+          <td class="m">Transcripts</td>
+          <td class="m">~/.claude/projects/&lt;slug&gt;/*.jsonl</td>
+          <td>Every <code>tool_use</code> block from every assistant turn: the file paths, commands, patterns and URLs the agent actually operated on.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="label">The one non-obvious part</span>
+    <p>Claude Code stores a project's transcripts in a directory named after the project path,
+    with every run of non-alphanumeric characters — slashes, spaces, dots, underscores —
+    collapsed to a single dash. <code>~/Development/Hotel Portal</code> becomes
+    <code>-Users-you-Development-Hotel-Portal</code>. Getting this wrong is silent: you find no
+    transcripts and conclude the repo has no history. rulecheck slugifies the same way, then
+    falls back to a suffix match for older encodings.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="num">03</span><h2>The pipeline</h2></div>
+  <p class="lede">
+    Five stages, all deterministic. Nothing is inferred, nothing is generated, and the same
+    inputs always produce a byte-identical report.
+  </p>
+
+  <div class="pipe">
+
+    <div class="stage">
+      <div class="stage-n">01</div>
+      <div class="stage-body">
+        <h3>Extract candidate rules</h3>
+        <p class="io"><b>rule file</b> <span class="arrow">→</span> <b>list of normative statements</b></p>
+        <p>Markdown is walked line by line. Fenced code blocks, tables, HTML and images are
+        skipped. A line becomes a candidate if it is a list item, a bolded directive, or a
+        sentence in a prose paragraph.</p>
+        <p>Prose files need care: hard-wrapped markdown splits one sentence across several lines,
+        so paragraphs are buffered and split on sentence boundaries as a single string. Without
+        that, every rule comes out as a fragment.</p>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">02</div>
+      <div class="stage-body">
+        <h3>Keep the ones that are actually rules</h3>
+        <p class="io"><b>candidates</b> <span class="arrow">→</span> <b>rules</b></p>
+        <p>A candidate survives if it carries a modal verb — <em>must, never, always, do not,
+        forbidden, required, should, avoid, ensure</em> — <strong>or</strong> if it is a named
+        directive, meaning it leads with bold text. That second test matters: a line like
+        <code>**No service-role key in the client**</code> is unmistakably a rule and contains no
+        modal verb at all.</p>
+        <p>Length is bounded to 25–400 characters, and duplicates are collapsed on the first 90
+        characters of lowercased text.</p>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">03</div>
+      <div class="stage-body">
+        <h3>Pull out the machine-checkable anchors</h3>
+        <p class="io"><b>rule text</b> <span class="arrow">→</span> <b>set of literals</b></p>
+        <p>This stage decides everything downstream. Three patterns are harvested:</p>
+        <div class="code"><pre><span class="c"># backticked identifiers — but not backticked prose</span>
+<span class="k">BACKTICK</span>  `([^`\n]{2,80})`        <span class="c">→ rejected if it is plain words</span>
+<span class="k">PATHISH</span>   src/db/client.ts, migrations/003.sql, hooks.json
+<span class="k">CMDISH</span>    npm run build, git push, docker compose up</pre></div>
+        <p>A rule with <strong>no</strong> literals is <span style="color:var(--unobs);font-weight:600">UNOBSERVABLE</span>
+        and stops here. It is never counted as dormant, because "we cannot check this" and
+        "this never happened" are different claims and conflating them would be a lie.</p>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">04</div>
+      <div class="stage-body">
+        <h3>Flatten the transcripts into evidence</h3>
+        <p class="io"><b>*.jsonl</b> <span class="arrow">→</span> <b>one lowercased text blob per session</b></p>
+        <p>Each line is scanned for <code>"tool_use"</code> before being parsed at all — the cheap
+        substring test skips the overwhelming majority of lines in a large transcript. Surviving
+        lines are parsed as JSON, filtered to assistant turns, and every <code>tool_use</code>
+        block's input is flattened across the fields that carry real subjects:</p>
+        <div class="code"><pre>file_path · path · command · pattern · notebook_path
+url · old_string · new_string · content · prompt · query</pre></div>
+        <p>Transcripts over 60 MB are skipped rather than risk stalling on a pathological file.</p>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-n">05</div>
+      <div class="stage-body">
+        <h3>Match, and count the evidence</h3>
+        <p class="io"><b>literals × sessions</b> <span class="arrow">→</span> <b>verdict</b></p>
+        <p>A rule fires in a session if any one of its literals appears anywhere in that session's
+        evidence blob. Fired in at least one session ⇒ FIRED. Fired in none ⇒ DORMANT. Every
+        verdict is auditable with <code>--rule N</code>, which prints the exact literals that
+        matched and the sessions they matched in.</p>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="num">04</span><h2>The verdict, exhaustively</h2></div>
+  <p class="lede">The entire decision is a two-question truth table. There is no scoring, no
+  threshold, and no ranking model.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Has literals?</th><th>Matched a session?</th><th>Verdict</th><th>What it means for you</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="m">no</td><td class="m">—</td>
+          <td class="m" style="color:var(--unobs);font-weight:600">UNOBSERVABLE</td>
+          <td>Rewrite it to name a path, command or identifier, or accept that it is advice rather than policy.</td>
+        </tr>
+        <tr>
+          <td class="m">yes</td><td class="m">no</td>
+          <td class="m" style="color:var(--dormant);font-weight:600">DORMANT</td>
+          <td>Delete it, or find out why nobody ever goes near the code it governs.</td>
+        </tr>
+        <tr>
+          <td class="m">yes</td><td class="m">yes</td>
+          <td class="m" style="color:var(--fired);font-weight:600">FIRED</td>
+          <td>It is load-bearing. Worth the context it costs.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="label">The low-evidence guard</span>
+    <p>Under <strong>150 recorded tool calls</strong> in a repo, rulecheck refuses to report a
+    dead-letter percentage and says so on the report. "This rule never fired" and "we barely
+    looked" are different statements, and a confident wrong number is worse than no number. The
+    uncheckable share is still reported, because it does not depend on how much activity there
+    has been.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="num">05</span><h2>The accruing record</h2></div>
+  <p class="lede">
+    A one-shot run can only see the transcripts still on disk. So it can tell you
+    <em>"this rule has never fired"</em> — but never <em>"this rule stopped firing five weeks
+    ago."</em> The second sentence is the useful one, and it needs a record that outlives its
+    source.
+  </p>
+  <p>
+    The plugin installs a single <code>SessionEnd</code> hook. At the end of each session it reads
+    that one transcript, applies the same matching logic, and appends one line to
+    <code>~/.rulecheck/history.jsonl</code>:
+  </p>
+
+  <div class="code"><pre>{"ts": "2026-07-27T02:55:50+00:00", "session": "493435eb",
+ "repo": "/Users/you/Development/Hotel Portal",
+ "rules": 20, "checkable": 16, "tool_calls": 237,
+ "fired": ["41c9da1956", "755174349f", "c5464646a9"]}</pre></div>
+
+  <p>
+    Those identifiers are <strong>hashes of the rule text</strong>, not positions in the file. Edit
+    line 4 and the rule on line 40 keeps its entire track record. Reword a rule and it correctly
+    reads as a new rule with no history — which is the honest answer, because it is now a
+    different rule.
+  </p>
+  <p>
+    <code>--history</code> then reports what a single run cannot: which rules have never fired
+    across the whole recorded window, and when each of the others was last seen.
+  </p>
+
+  <div class="note">
+    <span class="label">The hook can never break your session</span>
+    <p>Every failure path exits 0 silently — unparseable stdin, a missing transcript, a repo with
+    no rule file, an unwritable home directory. It has a 15-second timeout and takes no action
+    other than appending one line. A measurement tool that can break your editor is not worth
+    having.</p>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="num">06</span><h2>What it deliberately will not do</h2></div>
+  <p class="lede">
+    These are constraints, not missing features. Each one is load-bearing.
+  </p>
+  <ul>
+    <li><strong>No model in the judging path.</strong> Every verdict is literal matching, so the
+    same input always gives the same answer, nothing is invented, and any verdict can be audited
+    line by line. An earlier prototype put a model in exactly this seat — asking it to judge
+    whether an action conflicted with a recorded decision — and it scored <strong>AUC 0.465,
+    below chance</strong>. Any future component that asks a model to adjudicate has to pass that
+    same kill test first.</li>
+    <li><strong>No network, no account, no telemetry.</strong> The single file it writes is the
+    local history log. Delete it and you lose the history and nothing else.</li>
+    <li><strong>No writes to your repo.</strong> rulecheck will tell you a rule is dead. Deleting
+    it is your call — editing someone's CLAUDE.md is not a thing a measurement tool should do.</li>
+    <li><strong>No dead-letter rate on thin evidence.</strong> See §04.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="shead"><span class="num">07</span><h2>Trust boundary</h2></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Path</th><th>Mode</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="m">&lt;repo&gt;/CLAUDE.md and siblings</td><td class="m">read</td><td>The rules under test.</td></tr>
+        <tr><td class="m">~/.claude/projects/&lt;slug&gt;/*.jsonl</td><td class="m">read</td><td>The record of what actually happened.</td></tr>
+        <tr><td class="m">~/.rulecheck/history.jsonl</td><td class="m">append</td><td>The only thing it ever writes. Local, plain text, yours.</td></tr>
+        <tr><td class="m">network</td><td class="m">never</td><td>There is no client. Nothing leaves the machine.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="shead"><span class="num">08</span><h2>Limits — read before trusting a number</h2></div>
+  <ul>
+    <li><strong>FIRED is engagement, not compliance.</strong> It means the rule's literals appeared
+    in a session's tool inputs. The agent was in the neighbourhood. It does not prove the rule was
+    obeyed, and it should never be described as "followed". Closing that gap is the hard,
+    unsolved part.</li>
+    <li><strong>Prose rules land in UNOBSERVABLE by construction.</strong> That is the measurement
+    working, not the parser failing — but it does mean the count is a floor on how much of your
+    rule file is unenforceable, not a judgement on its quality.</li>
+    <li><strong>Rule extraction is heuristic.</strong> It reads list items, bolded directives and
+    normative sentences. It will miss some rules and over-collect others. <code>--json</code>
+    shows you exactly what it found so you can check.</li>
+    <li><strong>Claude Code transcripts only.</strong> Cursor and Codex are the obvious next
+    adapters; the matching stage is format-agnostic and would not change.</li>
+  </ul>
+</section>
+
+<footer>
+  <div>rulecheck 0.2.0 · Apache-2.0 · reads only, writes one local file</div>
+  <div>Determinism is the product. If it cannot be audited, it is not a measurement.</div>
+</footer>
+
+</div>
+</body>
+</html>
