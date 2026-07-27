@@ -12,6 +12,7 @@ and tells you, per rule:
 |---|---|
 | **FIRED** | the agent really did touch what this rule governs |
 | **DORMANT** | checkable, but no session ever engaged it — a dead letter paying rent in your context window |
+| **GUARDRAIL** | a prohibition that has never been tripped. Never firing is what a *working* prohibition looks like — these are reported separately and never counted as dead. |
 | **UNOBSERVABLE** | the rule names nothing a machine can verify. It may be good advice; it cannot be enforced or measured. |
 
 ## Install
@@ -65,30 +66,45 @@ rulecheck 0.1.0 · ~/Development/Hotel Portal
   20 rules found · 7 sessions · 1,359 recorded tool calls
 
   ●   8  FIRED         the agent actually reached this
-  ●   8  DORMANT       checkable, but never once engaged
+  ●   6  DORMANT       checkable, but never once engaged
+  ●   2  GUARDRAIL     a prohibition, never tripped — silence is the goal
   ●   4  UNOBSERVABLE  nothing here a machine can verify
 
   DEAD LETTERS — in your context window on every run, never applied
   ────────────────────────────────────────────────────────────────
-    1  When you spot dead UI: document it in `index/80-evaluations/...`
+    7  When you spot dead UI: document it in `index/80-evaluations/...`
        CLAUDE.md:27  looked for: index/80-evaluations/latent-ux-flows.md
 
-  40% of your rules have never once applied. 20% cannot be checked at all.
+  GUARDRAILS — prohibitions with no violation observed. Leave these alone.
+  ────────────────────────────────────────────────────────────────
+   19  Document, don't delete. Add an entry to `index/80-evaluations/...`
+       Never firing is what a working prohibition looks like.
+
+  30% of your obligations have never once applied. 20% of your rules
+  cannot be checked at all — you have no way to tell whether they work.
 ```
 
 ## What it found across 9 real repos
 
-| repo | rules | tool calls | dead | uncheckable |
-|---|---:|---:|---:|---:|
-| Hotel Portal | 20 | 1,359 | 40% | 20% |
-| Skeptics | 12 | 178 | 75% | 8% |
-| tokenroom | 22 | 90 | 18% | 55% |
-| processyard | 17 | 1,403 | 6% | 88% |
-| job-search-harness | 36 | 5,434 | 3% | 94% |
-| context-graph-steward | 21 | 46 | 5% | 76% |
+| repo | rules | tool calls | fired | dead | guardrail | uncheckable |
+|---|---:|---:|---:|---:|---:|---:|
+| Hotel Portal | 20 | 1,431 | 8 | 30% | 2 | 20% |
+| Skeptics | 12 | 178 | 2 | 50% | 3 | 8% |
+| tokenroom | 22 | 90 | 6 | 14% | 1 | 55% |
+| processyard | 17 | 1,403 | 1 | 6% | 0 | 88% |
+| job-search-harness | 36 | 5,434 | 1 | 3% | 0 | 94% |
+| context-graph-steward | 21 | 46 | 4 | 5% | 0 | 76% |
 
 The headline isn't the dead letters — it's the **uncheckable** column. Most of what
 people write into a rule file has no machine-observable anchor at all.
+
+**What that number does and doesn't say.** It is not a claim that those rules are
+worthless. A prose rule can steer the model perfectly well on every single run, and
+rulecheck cannot see that — it only sees tool calls. What the number says is that for
+88% of that file **you have no way to find out either way**: no way to know whether a
+rule is working, no way to notice when it stops, and no anchor to promote it into a
+hook or a check later. It measures how much of your governance is falsifiable, not how
+much of it is good.
 
 ## Design
 

@@ -32,7 +32,7 @@ import json, re, sys, argparse, hashlib
 from collections import defaultdict
 from pathlib import Path
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 # Where the session hook accrues its record. One line per session.
 HISTORY = Path.home() / ".rulecheck" / "history.jsonl"
@@ -44,6 +44,15 @@ MODAL = re.compile(
     r"\b(must not|must|never|always|do not|don't|dont|shall not|shall|"
     r"required|require|forbidden|prohibited|only ever|only|no longer|"
     r"avoid|prefer|should not|should|ensure|make sure)\b", re.I)
+
+# A prohibition is measured backwards from an obligation. "Always update the
+# changelog" never firing means the rule is dead. "Never force-push" never
+# firing means it is WORKING — silence is what compliance looks like. Report
+# those as dead letters and you tell people to delete their own guardrails.
+NEGATIVE = re.compile(
+    r"\b(never|must not|do not|don't|dont|shall not|should not|cannot|can't|"
+    r"forbidden|prohibited|not allowed|avoid|no longer)\b", re.I)
+NEGATIVE_LEAD = re.compile(r"^\s*no\s+\w", re.I)   # "No service-role key in the client"
 
 # Things a machine can actually look for in a transcript.
 BACKTICK = re.compile(r"`([^`\n]{2,80})`")
@@ -153,6 +162,8 @@ def _add(rules: list, seen: set, raw: str, rel: str, i: int) -> None:
         "key": hashlib.sha1(key.encode()).hexdigest()[:10],
         "text": txt,
         "source": f"{rel}:{i}",
+        "kind": "prohibition" if (NEGATIVE.search(txt) or NEGATIVE_LEAD.match(txt))
+                else "obligation",
         "literals": sorted(literals_of(raw)),
     })
 
@@ -258,7 +269,13 @@ def evaluate(rules: list[dict], sessions: list[dict]) -> list[dict]:
         r["hits"] = len(hit_sessions)
         r["sessions"] = hit_sessions[:8]
         r["matched"] = sorted(matched)
-        r["status"] = "FIRED" if hit_sessions else "DORMANT"
+        if hit_sessions:
+            r["status"] = "FIRED"
+        elif r["kind"] == "prohibition":
+            # Never triggered is the desired outcome, not a dead letter.
+            r["status"] = "GUARDRAIL"
+        else:
+            r["status"] = "DORMANT"
     return rules
 
 
@@ -275,6 +292,7 @@ def color(s, c, on):
 def report(repo, rules, sessions, tty=True):
     fired = [r for r in rules if r["status"] == "FIRED"]
     dormant = [r for r in rules if r["status"] == "DORMANT"]
+    guards = [r for r in rules if r["status"] == "GUARDRAIL"]
     unobs = [r for r in rules if r["status"] == "UNOBSERVABLE"]
     calls = sum(s["tool_calls"] for s in sessions)
 
@@ -297,6 +315,8 @@ def report(repo, rules, sessions, tty=True):
           f"{color('the agent actually reached this', DIM, tty)}")
     print(f"  {color('●', YEL, tty)} {color(str(len(dormant)).rjust(3), BOLD, tty)}  DORMANT       "
           f"{color('checkable, but never once engaged', DIM, tty)}")
+    print(f"  {color('●', CYA, tty)} {color(str(len(guards)).rjust(3), BOLD, tty)}  GUARDRAIL     "
+          f"{color('a prohibition, never tripped — silence is the goal', DIM, tty)}")
     print(f"  {color('●', RED, tty)} {color(str(len(unobs)).rjust(3), BOLD, tty)}  UNOBSERVABLE  "
           f"{color('nothing here a machine can verify', DIM, tty)}")
     print()
@@ -311,6 +331,17 @@ def report(repo, rules, sessions, tty=True):
                   f"{color('looked for: ' + ', '.join(r['literals'][:4]), DIM, tty)}")
         if len(dormant) > 12:
             print(color(f"       … {len(dormant)-12} more", DIM, tty))
+        print()
+
+    if guards:
+        print(color("  GUARDRAILS", BOLD, tty),
+              color("— prohibitions with no violation observed. Leave these alone.", DIM, tty))
+        print(color("  " + "─" * 64, DIM, tty))
+        for r in guards[:6]:
+            print(f"  {color(str(r['id']).rjust(3), CYA, tty)}  {r['text'][:74]}")
+        if len(guards) > 6:
+            print(color(f"       … {len(guards)-6} more", DIM, tty))
+        print(color("       Never firing is what a working prohibition looks like.", DIM, tty))
         print()
 
     if unobs:
@@ -328,19 +359,26 @@ def report(repo, rules, sessions, tty=True):
         print(color("  ACTIVE", BOLD, tty), color("— most-engaged rules", DIM, tty))
         print(color("  " + "─" * 64, DIM, tty))
         for r in sorted(fired, key=lambda x: -x["hits"])[:8]:
-            print(f"  {color(str(r['id']).rjust(3), GRN, tty)}  "
-                  f"{color(f'{r['hits']:>3} sessions', CYA, tty)}  {r['text'][:60]}")
+            mark = color("!", YEL, tty) if r["kind"] == "prohibition" else " "
+            print(f"  {color(str(r['id']).rjust(3), GRN, tty)} {mark} "
+                  f"{color(f'{r['hits']:>3} sessions', CYA, tty)}  {r['text'][:58]}")
+        if any(r["kind"] == "prohibition" for r in fired):
+            print(color("       ! a prohibition whose subject was touched. Engagement, "
+                        "not proof of violation.", DIM, tty))
         print()
 
     if rules:
         pct = round(100 * len(dormant) / len(rules))
         upct = round(100 * len(unobs) / len(rules))
         if thin:
-            print(color(f"  {upct}% of your rules cannot be checked at all. "
-                        f"Dead-letter rate needs more sessions.", BOLD, tty))
+            print(color(f"  {upct}% of your rules cannot be checked at all — you have no way "
+                        f"to tell whether they work.", BOLD, tty))
+            print(color("  Dead-letter rate needs more sessions.", DIM, tty))
         else:
-            print(color(f"  {pct}% of your rules have never once applied. "
-                        f"{upct}% cannot be checked at all.", BOLD, tty))
+            print(color(f"  {pct}% of your obligations have never once applied. "
+                        f"{upct}% of your rules", BOLD, tty))
+            print(color("  cannot be checked at all — you have no way to tell whether "
+                        "they work.", BOLD, tty))
     print()
 
 
@@ -395,7 +433,11 @@ def history_report(repo, rules, rows, tty=True):
             last_seen[k] = row.get("ts", "")
 
     checkable = [r for r in rules if r["literals"]]
-    never = [r for r in checkable if r["key"] not in last_seen]
+    # A prohibition that never fired is working, not rotting — see NEGATIVE.
+    never = [r for r in checkable
+             if r["key"] not in last_seen and r["kind"] == "obligation"]
+    quiet_guards = sum(1 for r in checkable
+                       if r["key"] not in last_seen and r["kind"] == "prohibition")
     seen = sorted((r for r in checkable if r["key"] in last_seen),
                   key=lambda r: last_seen[r["key"]])
 
@@ -408,6 +450,9 @@ def history_report(repo, rules, rows, tty=True):
             print(f"       {color(r['source'], DIM, tty)}")
         if len(never) > 12:
             print(color(f"       … {len(never)-12} more", DIM, tty))
+        if quiet_guards:
+            print(color(f"       ({quiet_guards} prohibitions also never fired — "
+                        f"that is them working, and they are not listed.)", DIM, tty))
         print()
 
     if seen:

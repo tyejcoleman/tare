@@ -226,6 +226,15 @@
         never once applied.</p>
       </div>
     </div>
+    <div class="verdict" style="--dot:var(--accent)">
+      <div class="vname" style="color:var(--accent)"><span class="dot" style="background:var(--accent)"></span>GUARDRAIL</div>
+      <div class="vbody">
+        <p>A prohibition — <em>never force-push</em>, <em>don't edit a previous migration</em> —
+        that has never been tripped.</p>
+        <p class="vnote">Measured backwards from an obligation. Never firing is what a working
+        prohibition looks like, so these are reported separately and never counted as dead.</p>
+      </div>
+    </div>
     <div class="verdict v-unobs">
       <div class="vname"><span class="dot"></span>UNOBSERVABLE</div>
       <div class="vbody">
@@ -367,21 +376,26 @@ url · old_string · new_string · content · prompt · query</pre></div>
   <div class="tablewrap">
     <table>
       <thead>
-        <tr><th>Has literals?</th><th>Matched a session?</th><th>Verdict</th><th>What it means for you</th></tr>
+        <tr><th>Has literals?</th><th>Prohibition?</th><th>Matched?</th><th>Verdict</th><th>What it means for you</th></tr>
       </thead>
       <tbody>
         <tr>
-          <td class="m">no</td><td class="m">—</td>
+          <td class="m">no</td><td class="m">—</td><td class="m">—</td>
           <td class="m" style="color:var(--unobs);font-weight:600">UNOBSERVABLE</td>
           <td>Rewrite it to name a path, command or identifier, or accept that it is advice rather than policy.</td>
         </tr>
         <tr>
-          <td class="m">yes</td><td class="m">no</td>
+          <td class="m">yes</td><td class="m">no</td><td class="m">no</td>
           <td class="m" style="color:var(--dormant);font-weight:600">DORMANT</td>
           <td>Delete it, or find out why nobody ever goes near the code it governs.</td>
         </tr>
         <tr>
-          <td class="m">yes</td><td class="m">yes</td>
+          <td class="m">yes</td><td class="m">yes</td><td class="m">no</td>
+          <td class="m" style="color:var(--accent);font-weight:600">GUARDRAIL</td>
+          <td>Leave it alone. A prohibition that never fires is a prohibition that is working.</td>
+        </tr>
+        <tr>
+          <td class="m">yes</td><td class="m">—</td><td class="m">yes</td>
           <td class="m" style="color:var(--fired);font-weight:600">FIRED</td>
           <td>It is load-bearing. Worth the context it costs.</td>
         </tr>

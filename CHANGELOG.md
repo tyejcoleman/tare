@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 — 2026-07-26
+
+**Correctness fix: prohibitions were being reported backwards.**
+
+`Never force-push` extracts a literal, never matches a session, and 0.2.0 called that a dead
+letter — telling you to delete your own guardrail, when silence is exactly what a working
+prohibition looks like. Obligations and prohibitions are measured in opposite directions and
+0.2.0 conflated them.
+
+- New **GUARDRAIL** verdict: a prohibition with no violation observed. Reported in its own
+  section, excluded from dead letters and from the dead-letter percentage.
+- Rules now carry `kind` — `obligation` or `prohibition` — in `--json`.
+- A prohibition that *did* match is marked `!` in the active list, with the caveat stated
+  inline: engagement is not proof of violation.
+- `--history` no longer lists quiet prohibitions as never-fired; it counts them separately.
+- Report copy no longer implies UNOBSERVABLE means worthless. The claim is that you cannot
+  find out either way, which is a different and defensible statement.
+
 ## 0.2.0 — 2026-07-26
 
 Packaged for installation by someone who is not the author.
