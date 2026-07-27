@@ -43,12 +43,13 @@ been invoked once** — including a tool the author built, packaged, and connect
 /plugin install tare
 ```
 
-Then `/tare:audit`. Or run the script directly — no dependencies:
+Then `/tare:audit`, `/tare:trim`, `/tare:why`. Or run the script directly — no dependencies:
 
 ```bash
 python3 tare.py                  # what your harness is carrying
 python3 tare.py --days 30        # only count the last N days
 python3 tare.py why linear       # the evidence behind one verdict
+python3 tare.py trim             # exactly what you would change (dry run)
 python3 tare.py rules ~/myrepo   # the same question, asked of a CLAUDE.md
 python3 tare.py --json
 ```

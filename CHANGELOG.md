@@ -1,6 +1,28 @@
 # Changelog
 
-## 0.3.0 — 2026-07-26
+## tare 0.1.0 — 2026-07-26
+
+Renamed from `rulecheck`, and the scope moved to where the measurement is actually strong.
+
+`rulecheck` measured whether `CLAUDE.md` rules fire. That works, but it leans on literal
+matching against prose, and most rules have no machine-checkable anchor at all — so the
+headline number rested on an inference a sharp reader could dismiss. The transcripts contain
+something far more exact: **every MCP server, subagent and skill you configured, against every
+one you actually invoked.** A tool call is a recorded fact, not an inference.
+
+- **`tare`** — audit this machine: configured vs. ever invoked, split into never used / cold / live.
+- **`tare why <name>`** — the receipt behind any verdict: calls, tools, projects, recency.
+- **`tare trim`** — the plan, as an exact change. Dry run by default. `--apply` backs up
+  `~/.claude.json` to `~/.tare/backups/` and writes atomically.
+- **Dead vs. misplaced.** A server configured globally but only ever called in one project is
+  not dead, it's misplaced — moving it there keeps the capability and removes the cost
+  everywhere else. Scoping to the home directory is excluded; that isn't scoping.
+- **Tools exposed vs. used** — `linear: 1/56 tools used`. Counted from tool names seen in
+  transcripts, which is a floor on what a server exposes, not a live schema read.
+- **`tare rules`** — the former `rulecheck`, now one panel.
+- Windowed runs say `unused in 30d`, never `NEVER USED`.
+
+## rulecheck 0.3.0 — 2026-07-26
 
 **Correctness fix: prohibitions were being reported backwards.**
 
@@ -18,7 +40,7 @@ prohibition looks like. Obligations and prohibitions are measured in opposite di
 - Report copy no longer implies UNOBSERVABLE means worthless. The claim is that you cannot
   find out either way, which is a different and defensible statement.
 
-## 0.2.0 — 2026-07-26
+## rulecheck 0.2.0 — 2026-07-26
 
 Packaged for installation by someone who is not the author.
 
@@ -34,7 +56,7 @@ Packaged for installation by someone who is not the author.
   correctly resets its track record.
 - `--version`.
 
-## 0.1.0 — 2026-07-26
+## rulecheck 0.1.0 — 2026-07-26
 
 First working version. Classifies every rule in `CLAUDE.md` / `AGENTS.md` as **FIRED**,
 **DORMANT**, or **UNOBSERVABLE** by literal-matching against recorded tool calls. No model in
