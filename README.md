@@ -14,17 +14,48 @@ and tells you, per rule:
 | **DORMANT** | checkable, but no session ever engaged it — a dead letter paying rent in your context window |
 | **UNOBSERVABLE** | the rule names nothing a machine can verify. It may be good advice; it cannot be enforced or measured. |
 
-## Run it
+## Install
+
+As a Claude Code plugin:
+
+```
+/plugin marketplace add tyejcoleman/rulecheck
+/plugin install rulecheck
+```
+
+Then `/rulecheck:check` in any repo, and `/rulecheck:history` once it has been running a while.
+
+Or just run the script — it is one file with no dependencies:
+
+```bash
+curl -O https://raw.githubusercontent.com/tyejcoleman/rulecheck/main/rulecheck.py
+python3 rulecheck.py
+```
 
 ```bash
 python3 rulecheck.py                  # current directory
 python3 rulecheck.py ~/code/myrepo
 python3 rulecheck.py --json           # machine-readable
 python3 rulecheck.py --rule 7         # evidence for one rule
+python3 rulecheck.py --history        # the accruing record (needs the plugin hook)
 ```
 
-Python 3.9+. **No dependencies. No install. No network.** It reads
-`~/.claude/projects/**.jsonl` and your rule files, and writes nothing anywhere.
+Python 3.9+. **No dependencies. No account. No network.** It reads
+`~/.claude/projects/**.jsonl` and your rule files.
+
+## The accruing record
+
+A single run only sees the transcripts still on disk, so it can tell you *"this rule has
+never fired"* but never *"this rule stopped firing five weeks ago"* — and the second one is
+the useful sentence.
+
+The plugin installs one `SessionEnd` hook that appends a single line per session to
+`~/.rulecheck/history.jsonl`: which rules that session engaged, and how many tool calls it
+made. The record then outlives the transcripts it came from, and `--history` shows you when
+each rule was last seen.
+
+That file is the only thing rulecheck ever writes. It stays on your machine — there is no
+account, no server, and no telemetry. If you delete it, you lose the history and nothing else.
 
 ## Real output
 

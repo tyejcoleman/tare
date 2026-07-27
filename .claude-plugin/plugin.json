@@ -1,0 +1,20 @@
+{
+  "name": "rulecheck",
+  "description": "Find out which of your CLAUDE.md rules actually fire. Reads the session transcripts already on your disk and marks every rule FIRED, DORMANT (never once applied), or UNOBSERVABLE (nothing a machine can check). Local, deterministic, no network.",
+  "version": "0.2.0",
+  "author": {
+    "name": "Tye Coleman",
+    "email": "taikicoleman@gmail.com"
+  },
+  "homepage": "https://github.com/tyejcoleman/rulecheck",
+  "repository": "https://github.com/tyejcoleman/rulecheck",
+  "license": "Apache-2.0",
+  "keywords": [
+    "claude-md",
+    "rules",
+    "context",
+    "audit",
+    "observability",
+    "governance"
+  ]
+}

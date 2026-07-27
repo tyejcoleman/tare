@@ -28,11 +28,14 @@ Usage:
 Reads only. Never writes, never sends anything anywhere.
 """
 from __future__ import annotations
-import json, re, sys, argparse
+import json, re, sys, argparse, hashlib
 from collections import defaultdict
 from pathlib import Path
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
+
+# Where the session hook accrues its record. One line per session.
+HISTORY = Path.home() / ".rulecheck" / "history.jsonl"
 
 # ---------------------------------------------------------------- rule parsing
 
@@ -144,6 +147,10 @@ def _add(rules: list, seen: set, raw: str, rel: str, i: int) -> None:
     seen.add(key)
     rules.append({
         "id": len(rules) + 1,
+        # Stable across edits elsewhere in the file, so history stays keyed to
+        # the rule itself rather than to its position. Reword a rule and it
+        # correctly reads as a new rule with no track record.
+        "key": hashlib.sha1(key.encode()).hexdigest()[:10],
         "text": txt,
         "source": f"{rel}:{i}",
         "literals": sorted(literals_of(raw)),
@@ -337,11 +344,97 @@ def report(repo, rules, sessions, tty=True):
     print()
 
 
+def load_history(repo: Path) -> list[dict]:
+    """Rows the session hook recorded for this repo, oldest first."""
+    if not HISTORY.is_file():
+        return []
+    rows = []
+    try:
+        with HISTORY.open(errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    d = json.loads(line)
+                except Exception:
+                    continue
+                if d.get("repo") == str(repo):
+                    rows.append(d)
+    except OSError:
+        return []
+    return rows
+
+
+def history_report(repo, rules, rows, tty=True):
+    print()
+    print(color(f"rulecheck {VERSION}", BOLD, tty),
+          color(f"· history · {repo}", DIM, tty))
+    print(color("─" * 66, DIM, tty))
+
+    if not rows:
+        print("  Nothing recorded yet for this repo.")
+        print(color("  The session hook writes one line per session to "
+                    f"{HISTORY}.", DIM, tty))
+        print(color("  Install the plugin, work normally for a week, then come back.",
+                    DIM, tty))
+        print()
+        return
+
+    first, last = rows[0].get("ts", "?"), rows[-1].get("ts", "?")
+    calls = sum(r.get("tool_calls", 0) for r in rows)
+    print(f"  {len(rows)} sessions recorded · {calls:,} tool calls")
+    print(color(f"  {first[:10]} → {last[:10]}", DIM, tty))
+    print()
+
+    # last time each rule key was seen firing, and how often
+    last_seen, counts = {}, defaultdict(int)
+    for row in rows:
+        for k in row.get("fired", []):
+            counts[k] += 1
+            last_seen[k] = row.get("ts", "")
+
+    checkable = [r for r in rules if r["literals"]]
+    never = [r for r in checkable if r["key"] not in last_seen]
+    seen = sorted((r for r in checkable if r["key"] in last_seen),
+                  key=lambda r: last_seen[r["key"]])
+
+    if never:
+        print(color("  NEVER FIRED", BOLD, tty),
+              color(f"— across all {len(rows)} recorded sessions", DIM, tty))
+        print(color("  " + "─" * 64, DIM, tty))
+        for r in never[:12]:
+            print(f"  {color(str(r['id']).rjust(3), YEL, tty)}  {r['text'][:74]}")
+            print(f"       {color(r['source'], DIM, tty)}")
+        if len(never) > 12:
+            print(color(f"       … {len(never)-12} more", DIM, tty))
+        print()
+
+    if seen:
+        print(color("  LAST SEEN", BOLD, tty),
+              color("— stalest first", DIM, tty))
+        print(color("  " + "─" * 64, DIM, tty))
+        for r in seen[:12]:
+            k = r["key"]
+            print(f"  {color(str(r['id']).rjust(3), GRN, tty)}  "
+                  f"{color(last_seen[k][:10], CYA, tty)}  "
+                  f"{color(f'{counts[k]:>3}x', DIM, tty)}  {r['text'][:52]}")
+        print()
+
+    if len(rows) < 5:
+        print(color("  Only a few sessions recorded so far — this is not yet a trend.",
+                    DIM, tty))
+        print()
+
+
 def main():
     ap = argparse.ArgumentParser(description="Which of your agent rules actually fire?")
     ap.add_argument("repo", nargs="?", default=".")
     ap.add_argument("--json", action="store_true")
     ap.add_argument("--rule", type=int, help="show evidence for one rule id")
+    ap.add_argument("--history", action="store_true",
+                    help="show the accruing record from the session hook")
+    ap.add_argument("--version", action="version", version=f"rulecheck {VERSION}")
     a = ap.parse_args()
 
     repo = Path(a.repo).expanduser().resolve()
@@ -354,6 +447,10 @@ def main():
         print(f"No rule file found in {repo}. Looked for: {', '.join(RULE_FILES)}",
               file=sys.stderr)
         return 1
+
+    if a.history:
+        history_report(repo, rules, load_history(repo), tty=sys.stdout.isatty())
+        return 0
 
     tdir = project_dir_for(repo)
     if tdir is None:

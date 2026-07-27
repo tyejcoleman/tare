@@ -1,0 +1,16 @@
+{
+  "description": "rulecheck — record which rules each session engaged, so the measurement accrues past the lifetime of the transcripts",
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/session_record.py\"",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

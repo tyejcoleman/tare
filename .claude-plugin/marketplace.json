@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "rulecheck",
+  "description": "rulecheck — measure which of your agent rules actually fire",
+  "owner": {
+    "name": "Tye Coleman",
+    "email": "taikicoleman@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "rulecheck",
+      "description": "Find out which of your CLAUDE.md rules actually fire. Reads the session transcripts already on your disk and marks every rule FIRED, DORMANT (never once applied), or UNOBSERVABLE (nothing a machine can check). Local, deterministic, no network.",
+      "author": {
+        "name": "Tye Coleman"
+      },
+      "category": "productivity",
+      "source": "./",
+      "homepage": "https://github.com/tyejcoleman/rulecheck"
+    }
+  ]
+}
